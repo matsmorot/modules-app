@@ -12,18 +12,18 @@ class ModuleService {
     func getModules() async throws -> [Module] {
         do {
             let modules = try await FetchClient.shared.fetch(for: [Module].self, endpoint: ModuleEndpoint.getModules)
-            return modules ?? []
+            return modules
         } catch {
-            print("ModuleService error: What we've got here is failure to communicate")
+            print("ModuleService error: Could not fetch modules")
             return [ModuleStore.placeholderModule]
         }
     }
     
-    func getModule(moduleID: Int) async throws -> Module? {
+    func getModule(moduleID: Int) async throws -> Module {
         do {
-            let response = try await FetchClient.shared.fetch(for: Module.self, endpoint: ModuleEndpoint.getModule(id: moduleID))
-            return response
+            return try await FetchClient.shared.fetch(for: Module.self, endpoint: ModuleEndpoint.getModule(id: moduleID))
         } catch {
+            print("ModuleService error: Could not fetch module with ID \(moduleID)")
             return ModuleStore.placeholderModule
         }
     }
