@@ -17,23 +17,15 @@ struct ModuleImageView: View {
         self.urlString = urlString
     }
     
-    var body: some View {
-        let cacheKey = NSString(string: urlString)
-        
-        if let cachedImage = viewModel.getImageFromCache(cacheKey: cacheKey) {
-            Image(uiImage: cachedImage)
+    var body: some View {        
+        if let image = viewModel.image {
+            Image(uiImage: image)
                 .resizable()
                 .scaledToFit()
         } else {
-            if let image = viewModel.image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                //TODO: Show placeholder image instead of text
-                Text("No image here")
-                    .font(.moduleQuiteSmall)
-            }
+            //TODO: Show placeholder image instead of text
+            Text("No image here")
+                .font(.moduleQuiteSmall)
         }
     }
 }

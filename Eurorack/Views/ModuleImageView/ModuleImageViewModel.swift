@@ -25,18 +25,4 @@ class ModuleImageViewModel: ObservableObject {
         self.image = await FetchClient.shared.fetchImage(from: imageUrl)
     }
     
-    func getImageFromCache(cacheKey: NSString) -> UIImage? {
-        print("DEBUG: Getting image from cache")
-        return FetchClient.shared.imageCache.object(forKey: cacheKey)
-    }
-    
-    func saveImageToCache(image: UIImage?, cacheKey: NSString) {
-        print("DEBUG: Saving image to cache")
-        guard let image else {
-            print("DEBUG: Could not save image to cache")
-            return
-        }
-        
-        FetchClient.shared.imageCache.setObject(image, forKey: cacheKey)
-    }
 }
