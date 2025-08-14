@@ -55,27 +55,27 @@ protocol APIClient {
     var baseURL: URL? { get }
     var session: URLSession { get }
     
-    func fetch<T: Codable>(for: T.Type, endpoint: Endpoint) async throws -> T?
+    func fetch<T: Codable>(for: T.Type, endpoint: Endpoint) async throws -> T
 }
 
 class FetchClient: APIClient {
     internal let baseURL: URL? = URL(filePath: "http://eurorack.ddns.net:8000")!
     let session: URLSession
-    var imageCache: NSCache<NSString, UIImage> {
+    var imageCache: NSCache<NSString, UIImage>
+        
+    private init(session: URLSession = .shared) {
+        self.session = session
+        
         let cache = NSCache<NSString, UIImage>()
         cache.countLimit = 100
         cache.totalCostLimit = 1024 * 1024 * cache.countLimit
         
-        return cache
-    }
-        
-    private init(session: URLSession = .shared) {
-        self.session = session
+        self.imageCache = cache
     }
     
     static let shared = FetchClient()
     
-    func fetch<T: Codable>(for: T.Type, endpoint: Endpoint) async throws -> T? {
+    func fetch<T: Codable>(for: T.Type, endpoint: Endpoint) async throws -> T {
         
         guard let url = baseURL?.appending(path: endpoint.path) else {
             throw APIError.invalidUrl
@@ -85,23 +85,45 @@ class FetchClient: APIClient {
             let (data, response) = try await session.data(from: url)
             
             guard let httpResponse = response as? HTTPURLResponse else {
-                print("API Error: \(APIError.invalidResponse)")
+                print("API Error: \(APIError.invalidResponse.customDescription)")
                 throw APIError.invalidResponse
             }
             
-            print("HTTP response: \(httpResponse)")
-            
+            //TODO: Handle specific HTTP errors further
             switch httpResponse.statusCode {
-            case 400...499: throw APIError.invalidEndpoint
-            case 500...599: throw APIError.serverError
-            default: print(httpResponse)
+            case 300...399: print("DEBUG: 3xx error - \(httpResponse.description)")
+            case 400...499: print("DEBUG: 4xx error - \(httpResponse.description)")
+            case 500...599: print("DEBUG: 5xx error - \(httpResponse.description)")
+            default: break
+            }
+            
+            guard (200...299).contains(httpResponse.statusCode) else {
+                throw URLError(.badServerResponse)
+            }
+            
+            guard !data.isEmpty else {
+                print("API Error: \(APIError.invalidData.customDescription)")
+                throw APIError.invalidData
             }
             
             let decodedData = try JSONDecoder().decode(T.self, from: data)
-                                    
-            return decodedData
             
-        } catch (let error) {
+            return decodedData
+
+        } catch let DecodingError.dataCorrupted(context) {
+            print("Decoding error: \(context.debugDescription)")
+            throw APIError.decodingError
+        } catch let DecodingError.keyNotFound(key, context) {
+            print("Key not found: \(key.stringValue), \(context.debugDescription)")
+            throw APIError.decodingError
+        } catch let DecodingError.typeMismatch(type, context) {
+            print("Type mismatch: \(type), \(context.debugDescription)")
+            throw APIError.decodingError
+        } catch let DecodingError.valueNotFound(value, context) {
+            print("Value not found: \(value), \(context.debugDescription)")
+            throw APIError.decodingError
+            
+        } catch {
             print(error.localizedDescription)
             throw APIError.unknownError(error: error)
         }
@@ -109,16 +131,31 @@ class FetchClient: APIClient {
     
     func fetchImage(from url: String) async -> UIImage? {
         guard let url = URL(string: url) else {
+            print("DEBUG: Invalid URL string: \(url)")
             return nil
+        }
+        
+        let cacheKey = NSString(string: url.absoluteString)
+        
+        if let cachedImage = imageCache.object(forKey: cacheKey) {
+            return cachedImage
         }
         
         do {
             let (data, _) = try await session.data(from: url)
-            return UIImage(data: data)
+            
+            guard let image = UIImage(data: data) else {
+                print("DEBUG: Failed to create image from data.")
+                return nil
+            }
+            
+            imageCache.setObject(image, forKey: cacheKey)
+            
+            return image
         } catch {
-            print("DEBUG: Error in image fetching")
+            print("DEBUG: Error in image fetching. \(error.localizedDescription)")
+            
+            return nil
         }
-        
-        return nil
     }
 }
